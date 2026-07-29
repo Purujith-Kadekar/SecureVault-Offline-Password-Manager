@@ -42,7 +42,7 @@ embedded
 Set this to your flasher page (after enabling GitHub Pages):
 
 ```
-https://shubhjaiswal408.github.io/SecureVault/
+https://github.com/Purujith-Kadekar/SecureVault-Offline-Password-Manager
 ```
 
 ## GitHub Pages Setup
@@ -69,7 +69,7 @@ git add .
 git commit -m "Initial commit: SecureVault firmware + Electron + Extension + Flasher"
 
 # 3. Push to GitHub
-git remote add origin https://github.com/Shubhjaiswal408/SecureVault.git
+git remote add origin https://github.com/Purujith-Kadekar/SecureVault-Offline-Password-Manager.git
 git branch -M main
 git push -u origin main
 ```
