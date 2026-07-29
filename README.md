@@ -11,7 +11,6 @@ Your vault never leaves the device. No cloud. No accounts. No trust required.
 [![Language](https://img.shields.io/badge/firmware-C%2B%2B-00599C?logo=cplusplus&logoColor=white)](#)
 [![Electron](https://img.shields.io/badge/desktop-Electron-47848F?logo=electron&logoColor=white)](#)
 [![Extension](https://img.shields.io/badge/extension-Chrome--MV3-4285F4?logo=googlechrome&logoColor=white)](#)
-[![Security](https://img.shields.io/badge/security-6--layer-ECDH%2BAES--256--GCM-green)](#-6-layer-security-stack)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 </div>
