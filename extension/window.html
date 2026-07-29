@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureVault</title>
+  <link rel="stylesheet" href="window.css">
+</head>
+<body>
+  <!-- ─── Lock Screen ─────────────────────────────────────────────── -->
+  <div id="lock-screen" class="lock-screen">
+    <div class="lock-brand">
+      <div class="lock-logo">SV</div>
+      <h1>SecureVault</h1>
+      <p class="lock-tagline">Zero-knowledge password manager</p>
+    </div>
+
+    <div class="lock-card">
+      <div id="lock-mode-open" class="lock-mode">
+        <h2>Open your vault</h2>
+        <p class="lock-hint">Choose your encrypted <code>.svlt</code> file and enter your master password.</p>
+        <button id="pick-file-btn" class="btn btn-secondary btn-block">
+          <span class="btn-icon">📁</span> Select .svlt file
+        </button>
+        <div id="file-info" class="file-info hidden">
+          <span class="file-info-icon">📄</span>
+          <span id="file-name" class="file-info-name">—</span>
+        </div>
+        <label class="field-label" for="master-pw">Master password</label>
+        <div class="password-input">
+          <input type="password" id="master-pw" placeholder="Enter master password" autocomplete="off" spellcheck="false">
+          <button class="toggle-visibility" data-target="master-pw" title="Show/hide" aria-label="Show/hide password"></button>
+        </div>
+        <button id="unlock-btn" class="btn btn-primary btn-block" disabled>Unlock vault</button>
+        <p id="unlock-error" class="error-text hidden"></p>
+        <p id="last-file-hint" class="lock-footnote hidden" style="color:var(--muted,#9ca3af);"></p>
+        <p class="lock-footnote">PBKDF2-SHA512 600k iterations · AES-256-GCM · HMAC-SHA256</p>
+      </div>
+
+      <div id="lock-mode-resume" class="lock-mode hidden">
+        <h2>Vault locked</h2>
+        <p class="lock-hint">Your session is still alive — re-enter your master password to resume.</p>
+        <p class="lock-file-name" style="font-size:12px;color:var(--muted,#9ca3af);margin-bottom:12px;word-break:break-all;">📁 <span id="resume-file-name">vault.svlt</span></p>
+        <label class="field-label" for="resume-pw">Master password</label>
+        <div class="password-input">
+          <input type="password" id="resume-pw" placeholder="Enter master password" autocomplete="off" spellcheck="false">
+          <button class="toggle-visibility" data-target="resume-pw" title="Show/hide" aria-label="Show/hide password"></button>
+        </div>
+        <button id="resume-btn" class="btn btn-primary btn-block">Unlock</button>
+        <p id="resume-error" class="error-text hidden"></p>
+        <button id="lock-forget-btn" class="btn btn-ghost btn-block">Forget session &amp; open different file</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Main App Shell ──────────────────────────────────────────── -->
+  <div id="app" class="app hidden">
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="lock-logo small">SV</div>
+        <span class="header-title">SecureVault</span>
+      </div>
+      <div class="header-actions">
+        <button id="popout-btn" class="icon-btn" title="Open in new window">⤢</button>
+        <button id="lock-now-btn" class="icon-btn" title="Lock now">🔒</button>
+      </div>
+    </header>
+
+    <main class="app-content">
+      <!-- ── Vault Tab ─────────────────────────────────────────── -->
+      <section id="tab-vault" class="tab-panel active">
+        <div class="vault-toolbar">
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true"></span>
+            <input type="search" id="search-input" placeholder="Search vault…" autocomplete="off" spellcheck="false">
+          </div>
+          <button id="add-entry-btn" class="btn btn-primary btn-icon-text">
+            <span>+</span> Add
+          </button>
+          <button id="btn-health-scan" class="btn btn-ghost btn-sm hidden" title="Scan all passwords for breaches">🛡 Health Scan</button>
+        </div>
+
+        <div class="filter-chips" id="filter-chips">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="login">Logins</button>
+          <button class="chip" data-filter="card">Cards</button>
+          <button class="chip" data-filter="identity">Identities</button>
+          <button class="chip" data-filter="note">Notes</button>
+          <button class="chip chip-danger" data-filter="trash">Trash</button>
+        </div>
+
+        <div id="entry-list" class="entry-list"></div>
+
+        <!-- Empty state -->
+        <div id="vault-empty" class="empty-state hidden">
+          <div class="empty-illustration"></div>
+          <h3>Your vault is empty</h3>
+          <p>Add your first login, card, identity, or secure note to get started.</p>
+          <button class="btn btn-primary" id="empty-add-btn">+ Add your first entry</button>
+        </div>
+      </section>
+
+      <!-- ── Generator Tab ─────────────────────────────────────── -->
+      <section id="tab-generator" class="tab-panel">
+        <div class="generator-display">
+          <div class="generator-password" id="gen-password">—</div>
+          <div class="generator-actions">
+            <button id="gen-copy" class="btn btn-secondary">Copy</button>
+            <button id="gen-regenerate" class="btn btn-primary">Regenerate</button>
+          </div>
+          <div class="strength-meter">
+            <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+            <div class="strength-label" id="strength-label">—</div>
+          </div>
+        </div>
+
+        <div class="generator-options">
+          <div class="seg-control" id="gen-mode">
+            <button class="seg-btn active" data-mode="random">Random</button>
+            <button class="seg-btn" data-mode="passphrase">Passphrase</button>
+          </div>
+
+          <!-- Random mode options -->
+          <div id="random-options" class="option-group">
+            <div class="option-row">
+              <label class="option-label">Length</label>
+              <div class="slider-wrap">
+                <input type="range" id="gen-length" min="5" max="128" value="20">
+                <span class="slider-value" id="gen-length-val">20</span>
+              </div>
+            </div>
+            <div class="checkbox-grid">
+              <label class="check-pill"><input type="checkbox" id="gen-upper" checked> A-Z</label>
+              <label class="check-pill"><input type="checkbox" id="gen-lower" checked> a-z</label>
+              <label class="check-pill"><input type="checkbox" id="gen-num" checked> 0-9</label>
+              <label class="check-pill"><input type="checkbox" id="gen-sym" checked> !@#</label>
+            </div>
+            <label class="check-pill block"><input type="checkbox" id="gen-avoid-ambig"> Avoid ambiguous characters (0/O/l/I/1)</label>
+          </div>
+
+          <!-- Passphrase mode options -->
+          <div id="passphrase-options" class="option-group hidden">
+            <div class="option-row">
+              <label class="option-label">Word count</label>
+              <div class="slider-wrap">
+                <input type="range" id="gen-wordcount" min="3" max="10" value="4">
+                <span class="slider-value" id="gen-wordcount-val">4</span>
+              </div>
+            </div>
+            <div class="option-row">
+              <label class="option-label">Separator</label>
+              <select id="gen-separator" class="select">
+                <option value="-">Dash (-)</option>
+                <option value=" ">Space</option>
+                <option value=".">Period (.)</option>
+                <option value=",">Comma (,)</option>
+                <option value="_">Underscore (_)</option>
+              </select>
+            </div>
+            <label class="check-pill block"><input type="checkbox" id="gen-capitalize"> Capitalize words</label>
+            <label class="check-pill block"><input type="checkbox" id="gen-include-num"> Include number</label>
+          </div>
+        </div>
+
+        <div class="history-section">
+          <div class="section-header">
+            <h3>Recent</h3>
+            <button id="clear-history" class="link-btn">Clear</button>
+          </div>
+          <div id="gen-history" class="history-list"></div>
+        </div>
+      </section>
+
+      <!-- ── Settings Tab ──────────────────────────────────────── -->
+      <section id="tab-settings" class="tab-panel">
+        <div class="settings-scroll">
+          <div class="settings-section">
+            <h3 class="settings-section-title">Security</h3>
+            <div class="settings-row">
+              <label for="set-lock-timeout">Lock timeout</label>
+              <select id="set-lock-timeout" class="select">
+                <option value="60000">1 minute</option>
+                <option value="300000">5 minutes</option>
+                <option value="900000" selected>15 minutes</option>
+                <option value="1800000">30 minutes</option>
+                <option value="3600000">1 hour</option>
+                <option value="0">Never</option>
+              </select>
+            </div>
+            <div class="settings-row">
+              <label for="set-clip-timeout">Clipboard timeout</label>
+              <select id="set-clip-timeout" class="select">
+                <option value="10000" selected>10 seconds</option>
+                <option value="20000">20 seconds</option>
+                <option value="30000">30 seconds</option>
+                <option value="60000">60 seconds</option>
+              </select>
+            </div>
+            <div class="settings-row toggle-row">
+              <label for="set-autofill">Auto-fill enabled</label>
+              <label class="switch">
+                <input type="checkbox" id="set-autofill">
+                <span class="slider-knob"></span>
+              </label>
+            </div>
+            <div class="settings-row toggle-row">
+              <label for="set-lockicon">Show lock icon on password fields</label>
+              <label class="switch">
+                <input type="checkbox" id="set-lockicon">
+                <span class="slider-knob"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3 class="settings-section-title">Master password</h3>
+            <label class="field-label">Current password</label>
+            <div class="password-input">
+              <input type="password" id="mp-current" placeholder="Current master password" autocomplete="off">
+              <button class="toggle-visibility" data-target="mp-current" aria-label="Show/hide password"></button>
+            </div>
+            <label class="field-label">New password (min 8 characters)</label>
+            <div class="password-input">
+              <input type="password" id="mp-new" placeholder="New master password" autocomplete="off">
+              <button class="toggle-visibility" data-target="mp-new" aria-label="Show/hide password"></button>
+            </div>
+            <label class="field-label">Confirm new password</label>
+            <div class="password-input">
+              <input type="password" id="mp-confirm" placeholder="Confirm new master password" autocomplete="off">
+              <button class="toggle-visibility" data-target="mp-confirm" aria-label="Show/hide password"></button>
+            </div>
+            <button id="change-mp-btn" class="btn btn-primary btn-block">Change master password</button>
+            <p id="mp-error" class="error-text hidden"></p>
+          </div>
+
+          <div class="settings-section">
+            <h3 class="settings-section-title">🛡 Breach Detection</h3>
+            <p class="muted small">Checks passwords against the Have I Been Pwned database using k-anonymity — only a 5-character hash prefix is sent, never your password. <strong>Off by default.</strong></p>
+            <div class="settings-row toggle-row">
+              <label for="setting-hibp">Enable breach detection</label>
+              <label class="switch">
+                <input type="checkbox" id="setting-hibp">
+                <span class="slider-knob"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-section">
+            <h3 class="settings-section-title">Data</h3>
+            <div class="settings-row">
+              <label>Current file</label>
+              <span id="current-file-name" class="settings-value">—</span>
+            </div>
+            <div class="settings-row">
+              <label>Last synced</label>
+              <span id="last-synced-at" class="settings-value">never</span>
+            </div>
+            <div class="settings-row toggle-row">
+              <label for="set-auto-sync">Auto-sync from Electron (3s poll)</label>
+              <label class="switch">
+                <input type="checkbox" id="set-auto-sync" checked>
+                <span class="slider-knob"></span>
+              </label>
+            </div>
+            <p class="muted small" style="margin-top:-4px;margin-bottom:8px;">
+              When enabled, the extension watches the .svlt file for changes
+              from the Electron desktop app and silently reloads. Disable if
+              you want manual control.
+            </p>
+            <button id="reload-file-btn" class="btn btn-secondary btn-block">Sync now (reload from disk)</button>
+            <button id="export-csv-btn" class="btn btn-secondary btn-block">Export to CSV (Bitwarden format)</button>
+            <button id="lock-now-settings-btn" class="btn btn-danger btn-block">Lock now</button>
+          </div>
+
+          <div class="settings-section">
+            <h3 class="settings-section-title">About</h3>
+            <div class="settings-row"><label>Version</label><span class="settings-value">6.8.1</span></div>
+            <div class="settings-row"><label>Format</label><span class="settings-value">SVLT v2</span></div>
+            <div class="settings-row"><label>KDF</label><span class="settings-value">PBKDF2-SHA512 600k</span></div>
+            <div class="settings-row"><label>Cipher</label><span class="settings-value">AES-256-GCM + HMAC-SHA256</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ── Bottom Tab Navigation ─────────────────────────────────── -->
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="vault">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label">Vault</span>
+      </button>
+      <button class="tab-btn" data-tab="generator">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label">Generator</span>
+      </button>
+      <button class="tab-btn" data-tab="settings">
+        <span class="tab-icon" aria-hidden="true"></span>
+        <span class="tab-label">Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ─── Add/Edit Modal ──────────────────────────────────────────── -->
+  <div id="entry-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-sheet">
+      <header class="modal-header">
+        <h2 id="modal-title">Add new entry</h2>
+        <button id="modal-close" class="icon-btn">✕</button>
+      </header>
+
+      <div class="modal-body">
+        <!-- Type selector -->
+        <div class="seg-control" id="entry-type">
+          <button class="seg-btn active" data-type="login">Login</button>
+          <button class="seg-btn" data-type="card">Card</button>
+          <button class="seg-btn" data-type="identity">Identity</button>
+          <button class="seg-btn" data-type="note">Note</button>
+        </div>
+
+        <!-- Login fields -->
+        <div id="fields-login" class="fields-group">
+          <label class="field-label">Name <span class="req">*</span></label>
+          <input type="text" data-field="name" placeholder="e.g. GitHub">
+
+          <label class="field-label">Website URL</label>
+          <input type="text" data-field="url" placeholder="https://example.com">
+
+          <label class="field-label">Username</label>
+          <input type="text" data-field="user" placeholder="username" autocomplete="off">
+
+          <label class="field-label">Password</label>
+          <div class="password-input">
+            <input type="password" data-field="pass" placeholder="Password" autocomplete="new-password">
+            <button class="toggle-visibility" data-field="pass" aria-label="Show/hide password"></button>
+            <button class="gen-inline-btn" id="gen-inline" title="Generate" aria-label="Generate password"></button>
+          </div>
+          <div class="strength-meter small">
+            <div class="strength-bar"><div class="strength-fill" id="inline-strength-fill"></div></div>
+            <div class="strength-label" id="inline-strength-label">—</div>
+          </div>
+
+          <div id="breach-check-row" class="breach-check-row hidden">
+            <button type="button" id="btn-check-pwned" class="btn btn-ghost btn-sm">🛡 Check for breaches</button>
+            <span id="breach-badge" class="breach-badge"></span>
+          </div>
+
+          <label class="field-label">TOTP secret (optional)</label>
+          <div class="totp-row">
+            <input type="text" data-field="totp" placeholder="JBSWY3DPEHPK3PXP" autocomplete="off" spellcheck="false">
+            <button id="totp-copy" class="btn btn-secondary btn-sm">Copy code</button>
+          </div>
+          <div id="totp-preview" class="totp-preview hidden">
+            <span id="totp-code" class="totp-code">------</span>
+            <span id="totp-countdown" class="totp-countdown">30s</span>
+          </div>
+
+          <label class="field-label">Notes</label>
+          <textarea data-field="notes" rows="3" placeholder="Notes (encrypted at rest)"></textarea>
+
+          <label class="field-label">Folder</label>
+          <input type="text" data-field="folder" list="folders-datalist" placeholder="e.g. Personal">
+          <datalist id="folders-datalist"></datalist>
+
+          <div class="settings-row toggle-row">
+            <label for="entry-favorite">Favorite</label>
+            <label class="switch">
+              <input type="checkbox" id="entry-favorite">
+              <span class="slider-knob"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Card fields -->
+        <div id="fields-card" class="fields-group hidden">
+          <label class="field-label">Name <span class="req">*</span></label>
+          <input type="text" data-field="name" placeholder="e.g. Visa – Primary">
+
+          <label class="field-label">Cardholder name</label>
+          <input type="text" data-field="cardholder" placeholder="Name on card">
+
+          <label class="field-label">Card number</label>
+          <input type="text" data-field="cardNumber" placeholder="0000 0000 0000 0000" inputmode="numeric">
+          <div id="card-brand" class="card-brand hidden"></div>
+
+          <label class="field-label">Expiration (MM/YY)</label>
+          <input type="text" data-field="exp" placeholder="MM/YY" inputmode="numeric">
+
+          <label class="field-label">CVV</label>
+          <div class="password-input">
+            <input type="password" data-field="cvv" placeholder="123" inputmode="numeric" maxlength="4">
+            <button class="toggle-visibility" data-field="cvv" aria-label="Show/hide CVV"></button>
+          </div>
+
+          <label class="field-label">Notes</label>
+          <textarea data-field="notes" rows="2"></textarea>
+
+          <label class="field-label">Folder</label>
+          <input type="text" data-field="folder" list="folders-datalist" placeholder="e.g. Personal">
+          <datalist id="folders-datalist-card"></datalist>
+
+          <div class="settings-row toggle-row">
+            <label for="entry-favorite-card">Favorite</label>
+            <label class="switch">
+              <input type="checkbox" id="entry-favorite-card">
+              <span class="slider-knob"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Identity fields -->
+        <div id="fields-identity" class="fields-group hidden">
+          <label class="field-label">Name <span class="req">*</span></label>
+          <input type="text" data-field="name" placeholder="e.g. Personal ID">
+
+          <div class="field-grid-2">
+            <div>
+              <label class="field-label">First name</label>
+              <input type="text" data-field="firstName">
+            </div>
+            <div>
+              <label class="field-label">Last name</label>
+              <input type="text" data-field="lastName">
+            </div>
+          </div>
+
+          <label class="field-label">Email</label>
+          <input type="email" data-field="email" autocomplete="off">
+
+          <label class="field-label">Phone</label>
+          <input type="tel" data-field="phone" autocomplete="off">
+
+          <label class="field-label">Address</label>
+          <input type="text" data-field="address">
+
+          <div class="field-grid-2">
+            <div>
+              <label class="field-label">City</label>
+              <input type="text" data-field="city">
+            </div>
+            <div>
+              <label class="field-label">State</label>
+              <input type="text" data-field="state">
+            </div>
+          </div>
+
+          <div class="field-grid-2">
+            <div>
+              <label class="field-label">Postal code</label>
+              <input type="text" data-field="postal">
+            </div>
+            <div>
+              <label class="field-label">Country</label>
+              <input type="text" data-field="country">
+            </div>
+          </div>
+
+          <label class="field-label">SSN</label>
+          <div class="password-input">
+            <input type="password" data-field="ssn" placeholder="000-00-0000">
+            <button class="toggle-visibility" data-field="ssn" aria-label="Show/hide SSN"></button>
+          </div>
+
+          <label class="field-label">Passport number</label>
+          <input type="text" data-field="passport">
+
+          <label class="field-label">License number</label>
+          <input type="text" data-field="license">
+
+          <label class="field-label">Notes</label>
+          <textarea data-field="notes" rows="2"></textarea>
+
+          <label class="field-label">Folder</label>
+          <input type="text" data-field="folder" list="folders-datalist" placeholder="e.g. Personal">
+
+          <div class="settings-row toggle-row">
+            <label for="entry-favorite-id">Favorite</label>
+            <label class="switch">
+              <input type="checkbox" id="entry-favorite-id">
+              <span class="slider-knob"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Secure Note fields -->
+        <div id="fields-note" class="fields-group hidden">
+          <label class="field-label">Title <span class="req">*</span></label>
+          <input type="text" data-field="name" placeholder="e.g. Wi-Fi password">
+
+          <label class="field-label">Notes</label>
+          <textarea data-field="notes" rows="6" placeholder="Secure note content"></textarea>
+
+          <label class="field-label">Folder</label>
+          <input type="text" data-field="folder" list="folders-datalist" placeholder="e.g. Personal">
+
+          <div class="settings-row toggle-row">
+            <label for="entry-favorite-note">Favorite</label>
+            <label class="switch">
+              <input type="checkbox" id="entry-favorite-note">
+              <span class="slider-knob"></span>
+            </label>
+          </div>
+        </div>
+
+        <p id="modal-error" class="error-text hidden"></p>
+      </div>
+
+      <footer class="modal-footer">
+        <button id="modal-delete" class="btn btn-danger-ghost hidden">Delete</button>
+        <button id="modal-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="modal-save" class="btn btn-primary">Save</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- ─── More menu (per entry) ──────────────────────────────────── -->
+  <div id="more-menu" class="more-menu hidden">
+    <button data-action="edit">Edit</button>
+    <button data-action="totp">Copy TOTP code</button>
+    <button data-action="url">Copy URL</button>
+    <button data-action="favorite">Add to favorites</button>
+    <button data-action="folder">Move to folder</button>
+    <button data-action="trash" class="danger">Move to trash</button>
+  </div>
+
+  <!-- ─── Toast ──────────────────────────────────────────────────── -->
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- ─── Health Scan Modal ─────────────────────────────────────── -->
+  <div id="health-scan-modal" class="health-scan-modal hidden">
+    <h3 id="health-scan-title">🛡 Scanning vault…</h3>
+    <p id="health-scan-status" class="muted small">Preparing…</p>
+    <div class="health-scan-progress-bar">
+      <div id="health-scan-fill" class="health-scan-progress-fill" style="width:0%"></div>
+    </div>
+    <div id="health-scan-results" class="health-scan-results"></div>
+    <div class="health-scan-actions">
+      <button id="health-scan-dismiss" class="btn btn-primary btn-block hidden">Dismiss</button>
+    </div>
+  </div>
+
+  <!-- ─── Scripts ───────────────────────────────────────────────── -->
+  <script type="module" src="window.js"></script>
+</body>
+</html>

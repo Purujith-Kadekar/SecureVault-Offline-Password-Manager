@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>SecureVault Firmware Installer</title>
+
+<meta name="description" content="Flash SecureVault firmware directly from your browser using ESP Web Tools. ESP32-S3 hardware password manager with 6-layer encryption.">
+
+<meta name="keywords" content="SecureVault, ESP32-S3, firmware flasher, hardware password manager, ECDH, AES-256-GCM, password manager, offline vault">
+
+<meta name="author" content="Shubh Jaiswal">
+
+<meta property="og:title" content="SecureVault Firmware Installer">
+<meta property="og:description" content="Flash SecureVault firmware directly from your browser. ESP32-S3 hardware password manager with 6-layer encryption.">
+<meta property="og:type" content="website">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SecureVault Firmware Installer">
+<meta name="twitter:description" content="Flash SecureVault firmware directly from your browser. ESP32-S3 hardware password manager with 6-layer encryption.">
+
+<script
+  type="module"
+  src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module">
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<style>
+:root{
+    --bg:#0a0e1a;
+    --card:#111827;
+    --border:#1e3a5f;
+    --text:#e8f0fe;
+    --muted:#7b93b0;
+    --primary:#00c2ff;
+    --primary2:#0078d4;
+    --accent:#00e676;
+    --glow:rgba(0,194,255,.25);
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html{
+    scroll-behavior:smooth;
+}
+
+body{
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+    background:
+        linear-gradient(
+            180deg,
+            #0a0e1a 0%,
+            #111827 40%,
+            #0d1b2a 100%
+        );
+
+    color:var(--text);
+    min-height:100vh;
+    line-height:1.6;
+}
+
+.container{
+    width:min(1100px,92%);
+    margin:auto;
+}
+
+.hero{
+    text-align:center;
+    padding:80px 0 50px;
+}
+
+.badge{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 18px;
+    border-radius:999px;
+    background:rgba(0,194,255,.08);
+    border:1px solid var(--border);
+    color:var(--primary);
+    margin-bottom:20px;
+    font-size:.9rem;
+    letter-spacing:.5px;
+}
+
+.badge-dot{
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:var(--accent);
+    display:inline-block;
+    animation:pulse 2s infinite;
+}
+
+@keyframes pulse{
+    0%,100%{opacity:1}
+    50%{opacity:.3}
+}
+
+h1{
+    font-size:clamp(2rem,5vw,3.5rem);
+    margin-bottom:14px;
+    letter-spacing:-.02em;
+}
+
+.subtitle{
+    max-width:720px;
+    margin:auto;
+    color:var(--muted);
+    font-size:1.05rem;
+}
+
+.security-badges{
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    margin-top:24px;
+    flex-wrap:wrap;
+}
+
+.sec-badge{
+    padding:6px 14px;
+    border-radius:8px;
+    background:rgba(0,230,118,.08);
+    border:1px solid rgba(0,230,118,.2);
+    color:var(--accent);
+    font-size:.8rem;
+    letter-spacing:.3px;
+}
+
+.flash-section{
+    text-align:center;
+    margin:20px 0 50px;
+}
+
+.flash-title{
+    font-size:1.4rem;
+    margin-bottom:10px;
+}
+
+.flash-desc{
+    color:var(--muted);
+    margin-bottom:24px;
+}
+
+/* ESP Web Tools Button */
+
+esp-web-install-button{
+    display:inline-block;
+}
+
+esp-web-install-button::part(button){
+    background:
+        linear-gradient(
+            135deg,
+            var(--primary),
+            var(--primary2)
+        );
+
+    color:#fff;
+    border:none;
+    border-radius:14px;
+
+    padding:14px 34px;
+
+    min-width:180px;
+
+    font-size:16px;
+    font-weight:600;
+
+    cursor:pointer;
+
+    box-shadow:
+        0 6px 18px var(--glow);
+
+    transition:
+        transform .2s ease,
+        box-shadow .2s ease;
+}
+
+esp-web-install-button::part(button):hover{
+    transform:translateY(-2px);
+
+    box-shadow:
+        0 10px 24px rgba(0,194,255,.35);
+}
+
+.button-row{
+    margin-top:22px;
+
+    display:flex;
+    justify-content:center;
+    gap:12px;
+    flex-wrap:wrap;
+}
+
+.btn{
+    text-decoration:none;
+    color:white;
+
+    background:#1e293b;
+
+    border:1px solid var(--border);
+
+    padding:12px 20px;
+
+    border-radius:12px;
+
+    transition:.2s;
+}
+
+.btn:hover{
+    transform:translateY(-2px);
+    background:#253349;
+}
+
+.card-grid{
+    display:grid;
+    grid-template-columns:
+        repeat(auto-fit,minmax(300px,1fr));
+
+    gap:24px;
+
+    margin-top:30px;
+}
+
+.card{
+    background:var(--card);
+
+    border:1px solid var(--border);
+
+    border-radius:18px;
+
+    padding:24px;
+}
+
+.card h2{
+    margin-bottom:14px;
+    font-size:1.2rem;
+}
+
+.card p,
+.card li{
+    color:#a4b8d0;
+}
+
+.card ul{
+    padding-left:18px;
+}
+
+.card ul li{
+    margin-bottom:6px;
+}
+
+.warning{
+    border:1px solid #7f1d1d;
+    background:#1a0f0f;
+}
+
+.warning h2{
+    color:#ff5252;
+}
+
+.warning li{
+    color:#ff8a80;
+}
+
+.footer{
+    text-align:center;
+    padding:50px 0 40px;
+    color:var(--muted);
+}
+
+.footer small{
+    display:block;
+    margin-top:6px;
+}
+
+/* ===== GPIO Configuration Section ===== */
+
+.gpio-section{
+    margin:40px 0 30px;
+}
+
+.gpio-section .section-title{
+    font-size:1.4rem;
+    text-align:center;
+    margin-bottom:8px;
+}
+
+.gpio-section .section-desc{
+    color:var(--muted);
+    text-align:center;
+    margin-bottom:24px;
+    font-size:.95rem;
+}
+
+.gpio-tabs{
+    display:flex;
+    justify-content:center;
+    gap:4px;
+    margin-bottom:24px;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:6px;
+    max-width:480px;
+    margin-left:auto;
+    margin-right:auto;
+}
+
+.gpio-tab{
+    flex:1;
+    padding:12px 20px;
+    border-radius:10px;
+    border:none;
+    background:transparent;
+    color:var(--muted);
+    font-size:.95rem;
+    font-weight:600;
+    cursor:pointer;
+    transition:all .25s ease;
+    text-align:center;
+}
+
+.gpio-tab:hover{
+    color:var(--text);
+    background:rgba(0,194,255,.06);
+}
+
+.gpio-tab.active{
+    background:linear-gradient(135deg, var(--primary), var(--primary2));
+    color:#fff;
+    box-shadow:0 4px 14px var(--glow);
+}
+
+.gpio-panel{
+    display:none;
+}
+
+.gpio-panel.active{
+    display:block;
+}
+
+.gpio-default-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:32px;
+    text-align:center;
+}
+
+.gpio-default-card h3{
+    font-size:1.15rem;
+    margin-bottom:10px;
+    color:var(--accent);
+}
+
+.gpio-default-card p{
+    color:#a4b8d0;
+    max-width:560px;
+    margin:0 auto 16px;
+    line-height:1.7;
+}
+
+.gpio-default-card .default-pin-summary{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:10px;
+    margin-top:20px;
+    text-align:left;
+}
+
+.gpio-default-card .default-pin-summary .pin-item{
+    display:flex;
+    justify-content:space-between;
+    padding:8px 14px;
+    background:rgba(0,194,255,.05);
+    border:1px solid rgba(0,194,255,.12);
+    border-radius:8px;
+    font-size:.85rem;
+}
+
+.gpio-default-card .default-pin-summary .pin-item .pin-label{
+    color:var(--muted);
+}
+
+.gpio-default-card .default-pin-summary .pin-item .pin-val{
+    color:var(--primary);
+    font-weight:600;
+    font-family:monospace;
+}
+
+.gpio-note{
+    margin-top:18px;
+    padding:14px 18px;
+    background:rgba(0,230,118,.06);
+    border:1px solid rgba(0,230,118,.18);
+    border-radius:10px;
+    color:var(--accent);
+    font-size:.88rem;
+    text-align:center;
+    max-width:600px;
+    margin-left:auto;
+    margin-right:auto;
+}
+
+/* Custom GPIO form */
+
+.gpio-form-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:18px;
+    padding:28px;
+}
+
+.gpio-category{
+    margin-bottom:24px;
+}
+
+.gpio-category:last-of-type{
+    margin-bottom:0;
+}
+
+.gpio-category-title{
+    font-size:1rem;
+    font-weight:700;
+    color:var(--primary);
+    margin-bottom:12px;
+    padding-bottom:8px;
+    border-bottom:1px solid rgba(0,194,255,.15);
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+
+.gpio-category-title .cat-icon{
+    font-size:1.1rem;
+}
+
+.gpio-fields{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+    gap:12px;
+}
+
+.gpio-field{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+}
+
+.gpio-field label{
+    font-size:.82rem;
+    color:var(--muted);
+    font-weight:500;
+    letter-spacing:.3px;
+}
+
+.gpio-field input[type="number"]{
+    background:rgba(0,0,0,.3);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:10px 12px;
+    color:var(--text);
+    font-size:.95rem;
+    font-family:monospace;
+    width:100%;
+    transition:border-color .2s;
+    -moz-appearance:textfield;
+}
+
+.gpio-field input[type="number"]::-webkit-outer-spin-button,
+.gpio-field input[type="number"]::-webkit-inner-spin-button{
+    -webkit-appearance:none;
+    margin:0;
+}
+
+.gpio-field input[type="number"]:focus{
+    outline:none;
+    border-color:var(--primary);
+    box-shadow:0 0 0 2px rgba(0,194,255,.15);
+}
+
+.gpio-field input[type="number"].changed{
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px rgba(0,230,118,.15);
+}
+
+.gpio-field .default-hint{
+    font-size:.72rem;
+    color:rgba(123,147,176,.6);
+    font-style:italic;
+}
+
+.gpio-actions{
+    margin-top:28px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+}
+
+.btn-generate{
+    background:linear-gradient(135deg, var(--primary), var(--primary2));
+    color:#fff;
+    border:none;
+    border-radius:14px;
+    padding:14px 36px;
+    font-size:16px;
+    font-weight:600;
+    cursor:pointer;
+    box-shadow:0 6px 18px var(--glow);
+    transition:transform .2s ease, box-shadow .2s ease;
+}
+
+.btn-generate:hover{
+    transform:translateY(-2px);
+    box-shadow:0 10px 24px rgba(0,194,255,.35);
+}
+
+.btn-generate:active{
+    transform:translateY(0);
+}
+
+.gpio-output{
+    display:none;
+    width:100%;
+    max-width:640px;
+    margin:0 auto;
+}
+
+.gpio-output.visible{
+    display:block;
+}
+
+.gpio-output-card{
+    background:rgba(0,194,255,.05);
+    border:1px solid rgba(0,194,255,.2);
+    border-radius:14px;
+    padding:20px;
+    text-align:center;
+}
+
+.gpio-output-card h3{
+    font-size:1.05rem;
+    margin-bottom:14px;
+    color:var(--accent);
+}
+
+.gpio-output-card .download-link{
+    display:inline-block;
+    background:linear-gradient(135deg, var(--accent), #00c853);
+    color:#0a0e1a;
+    text-decoration:none;
+    font-weight:700;
+    padding:12px 28px;
+    border-radius:12px;
+    font-size:.95rem;
+    margin-bottom:16px;
+    transition:transform .2s;
+}
+
+.gpio-output-card .download-link:hover{
+    transform:translateY(-2px);
+}
+
+.gpio-output-card .cmd-block{
+    background:rgba(0,0,0,.4);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    text-align:left;
+    margin-top:14px;
+    font-family:monospace;
+    font-size:.85rem;
+    color:var(--primary);
+    overflow-x:auto;
+    white-space:pre-wrap;
+    word-break:break-all;
+}
+
+.gpio-output-card .cmd-label{
+    color:var(--muted);
+    font-size:.82rem;
+    margin-top:10px;
+    font-family:sans-serif;
+}
+
+.gpio-output-card .note-text{
+    color:var(--muted);
+    font-size:.82rem;
+    margin-top:12px;
+    line-height:1.5;
+}
+
+.gpio-output-card .note-text strong{
+    color:var(--text);
+}
+
+.gpio-output-card .hex-preview{
+    margin-top:14px;
+    text-align:left;
+}
+
+.gpio-output-card .hex-preview summary{
+    cursor:pointer;
+    color:var(--muted);
+    font-size:.82rem;
+    margin-bottom:8px;
+}
+
+.gpio-output-card .hex-preview .hex-dump{
+    font-family:monospace;
+    font-size:.75rem;
+    color:rgba(0,194,255,.7);
+    line-height:1.5;
+    max-height:200px;
+    overflow-y:auto;
+    background:rgba(0,0,0,.3);
+    padding:10px;
+    border-radius:8px;
+}
+
+@media(max-width:768px){
+
+    .hero{
+        padding-top:50px;
+    }
+
+    .card-grid{
+        grid-template-columns:1fr;
+    }
+
+    .security-badges{
+        gap:6px;
+    }
+
+    .gpio-fields{
+        grid-template-columns:1fr 1fr;
+    }
+
+    .gpio-tabs{
+        max-width:100%;
+    }
+
+    .gpio-default-card .default-pin-summary{
+        grid-template-columns:1fr;
+    }
+}
+
+@media(max-width:480px){
+    .gpio-fields{
+        grid-template-columns:1fr;
+    }
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<section class="hero">
+
+    <div class="badge">
+        <span class="badge-dot"></span>
+        SecureVault &bull; v5.4.9 &bull; 6-Layer Encryption
+    </div>
+
+    <h1>SecureVault Firmware Installer</h1>
+
+    <p class="subtitle">
+        Install SecureVault directly from your browser using ESP Web Tools.
+        No PlatformIO, no IDE, no command line required.
+    </p>
+
+    <div class="security-badges">
+        <span class="sec-badge">ECDH P-256</span>
+        <span class="sec-badge">HKDF-SHA256</span>
+        <span class="sec-badge">AES-256-GCM</span>
+        <span class="sec-badge">Method Tunneling</span>
+        <span class="sec-badge">Traffic Obfuscation</span>
+        <span class="sec-badge">Secure Zeroing</span>
+    </div>
+
+</section>
+
+<section class="flash-section">
+
+    <h2 class="flash-title">
+        Flash Firmware
+    </h2>
+
+    <p class="flash-desc">
+        Connect your ESP32-S3 device via USB and click Connect.
+    </p>
+
+    <esp-web-install-button manifest="manifest.json">
+        Connect Device
+    </esp-web-install-button>
+
+    <div class="button-row">
+
+        <a href="#instructions" class="btn">
+            Installation Guide
+        </a>
+
+        <a href="https://github.com/Shubhjaiswal408/SecureVault" class="btn">
+            View on GitHub
+        </a>
+
+    </div>
+
+</section>
+
+<!-- ===== GPIO Configuration Section ===== -->
+
+<section class="gpio-section" id="gpio-config">
+
+    <h2 class="section-title">GPIO Configuration</h2>
+    <p class="section-desc">
+        Configure hardware pin mappings for custom boards, or use the default EdgeHax S3-PRO mapping.
+    </p>
+
+    <!-- Tab Switcher -->
+    <div class="gpio-tabs">
+        <button class="gpio-tab active" data-tab="default" onclick="switchGpioTab('default')">
+            Default (EdgeHax S3-PRO)
+        </button>
+        <button class="gpio-tab" data-tab="custom" onclick="switchGpioTab('custom')">
+            Custom GPIO Mapping
+        </button>
+    </div>
+
+    <!-- Default Panel -->
+    <div class="gpio-panel active" id="panel-default">
+        <div class="gpio-default-card">
+            <h3>EdgeHax S3-PRO Default Pinout</h3>
+            <p>
+                No extra steps needed. Flash the firmware using the <strong>Connect Device</strong> button above
+                and the default EdgeHax S3-PRO pin mapping will be used automatically.
+            </p>
+
+            <div class="default-pin-summary">
+                <div class="pin-item"><span class="pin-label">TFT_CS</span><span class="pin-val">4</span></div>
+                <div class="pin-item"><span class="pin-label">TFT_RST</span><span class="pin-val">5</span></div>
+                <div class="pin-item"><span class="pin-label">TFT_DC</span><span class="pin-val">7</span></div>
+                <div class="pin-item"><span class="pin-label">TFT_MOSI</span><span class="pin-val">15</span></div>
+                <div class="pin-item"><span class="pin-label">TFT_CLK</span><span class="pin-val">16</span></div>
+                <div class="pin-item"><span class="pin-label">TFT_MISO</span><span class="pin-val">39</span></div>
+                <div class="pin-item"><span class="pin-label">TOUCH_CS</span><span class="pin-val">14</span></div>
+                <div class="pin-item"><span class="pin-label">T_DO</span><span class="pin-val">41</span></div>
+                <div class="pin-item"><span class="pin-label">RTC_SDA</span><span class="pin-val">1</span></div>
+                <div class="pin-item"><span class="pin-label">RTC_SCL</span><span class="pin-val">2</span></div>
+                <div class="pin-item"><span class="pin-label">LADDER_PIN</span><span class="pin-val">6</span></div>
+                <div class="pin-item"><span class="pin-label">TOUCH_PIN</span><span class="pin-val">40</span></div>
+                <div class="pin-item"><span class="pin-label">BUZZER_PIN</span><span class="pin-val">38</span></div>
+                <div class="pin-item"><span class="pin-label">SD_CS</span><span class="pin-val">10</span></div>
+                <div class="pin-item"><span class="pin-label">SD_MOSI</span><span class="pin-val">11</span></div>
+                <div class="pin-item"><span class="pin-label">SD_SCK</span><span class="pin-val">12</span></div>
+                <div class="pin-item"><span class="pin-label">SD_MISO</span><span class="pin-val">13</span></div>
+                <div class="pin-item"><span class="pin-label">I2S_MCLK</span><span class="pin-val">9</span></div>
+                <div class="pin-item"><span class="pin-label">I2S_SDIN</span><span class="pin-val">38</span></div>
+                <div class="pin-item"><span class="pin-label">I2S_LRCLK</span><span class="pin-val">21</span></div>
+                <div class="pin-item"><span class="pin-label">I2S_BCLK</span><span class="pin-val">42</span></div>
+            </div>
+
+            <div class="gpio-note">
+                Only change pins that differ from the defaults. Unchanged pins will use the EdgeHax S3-PRO mapping automatically.
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Panel -->
+    <div class="gpio-panel" id="panel-custom">
+        <div class="gpio-form-card">
+            <div class="gpio-note" style="margin-bottom:20px; margin-top:0;">
+                Only change pins that differ from the defaults. Unchanged pins will use the EdgeHax S3-PRO mapping automatically.
+            </div>
+
+            <form id="gpioForm" onsubmit="return false;">
+
+                <!-- Display -->
+                <div class="gpio-category">
+                    <div class="gpio-category-title">
+                        <span class="cat-icon">&#9881;</span> Display (ILI9341 TFT)
+                    </div>
+                    <div class="gpio-fields">
+                        <div class="gpio-field">
+                            <label for="pin_TFT_CS">TFT_CS</label>
+                            <input type="number" id="pin_TFT_CS" data-default="4" value="4" min="-1" max="127">
+                            <span class="default-hint">default: 4</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_TFT_RST">TFT_RST</label>
+                            <input type="number" id="pin_TFT_RST" data-default="5" value="5" min="-1" max="127">
+                            <span class="default-hint">default: 5</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_TFT_DC">TFT_DC</label>
+                            <input type="number" id="pin_TFT_DC" data-default="7" value="7" min="-1" max="127">
+                            <span class="default-hint">default: 7</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_TFT_MOSI">TFT_MOSI</label>
+                            <input type="number" id="pin_TFT_MOSI" data-default="15" value="15" min="-1" max="127">
+                            <span class="default-hint">default: 15</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_TFT_CLK">TFT_CLK</label>
+                            <input type="number" id="pin_TFT_CLK" data-default="16" value="16" min="-1" max="127">
+                            <span class="default-hint">default: 16</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_TFT_MISO">TFT_MISO</label>
+                            <input type="number" id="pin_TFT_MISO" data-default="39" value="39" min="-1" max="127">
+                            <span class="default-hint">default: 39</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Touch -->
+                <div class="gpio-category">
+                    <div class="gpio-category-title">
+                        <span class="cat-icon">&#9757;</span> Touch (XPT2046)
+                    </div>
+                    <div class="gpio-fields">
+                        <div class="gpio-field">
+                            <label for="pin_TOUCH_CS">TOUCH_CS</label>
+                            <input type="number" id="pin_TOUCH_CS" data-default="14" value="14" min="-1" max="127">
+                            <span class="default-hint">default: 14</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_T_DO">T_DO</label>
+                            <input type="number" id="pin_T_DO" data-default="41" value="41" min="-1" max="127">
+                            <span class="default-hint">default: 41</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- I2C Bus -->
+                <div class="gpio-category">
+                    <div class="gpio-category-title">
+                        <span class="cat-icon">&#128268;</span> I2C Bus
+                    </div>
+                    <div class="gpio-fields">
+                        <div class="gpio-field">
+                            <label for="pin_RTC_SDA">RTC_SDA</label>
+                            <input type="number" id="pin_RTC_SDA" data-default="1" value="1" min="-1" max="127">
+                            <span class="default-hint">default: 1</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_RTC_SCL">RTC_SCL</label>
+                            <input type="number" id="pin_RTC_SCL" data-default="2" value="2" min="-1" max="127">
+                            <span class="default-hint">default: 2</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_RTC_I2C_ADDR">RTC_I2C_ADDR</label>
+                            <input type="number" id="pin_RTC_I2C_ADDR" data-default="104" value="104" min="-1" max="127">
+                            <span class="default-hint">default: 0x68 (104)</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_MPU_ADDR">MPU_ADDR</label>
+                            <input type="number" id="pin_MPU_ADDR" data-default="105" value="105" min="-1" max="127">
+                            <span class="default-hint">default: 0x69 (105)</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_EEPROM_I2C_ADDR">EEPROM_I2C_ADDR</label>
+                            <input type="number" id="pin_EEPROM_I2C_ADDR" data-default="87" value="87" min="-1" max="127">
+                            <span class="default-hint">default: 0x57 (87)</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_INA219_I2C_ADDR">INA219_I2C_ADDR</label>
+                            <input type="number" id="pin_INA219_I2C_ADDR" data-default="64" value="64" min="-1" max="127">
+                            <span class="default-hint">default: 0x40 (64)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input -->
+                <div class="gpio-category">
+                    <div class="gpio-category-title">
+                        <span class="cat-icon">&#127911;</span> Input / Output
+                    </div>
+                    <div class="gpio-fields">
+                        <div class="gpio-field">
+                            <label for="pin_LADDER_PIN">LADDER_PIN</label>
+                            <input type="number" id="pin_LADDER_PIN" data-default="6" value="6" min="-1" max="127">
+                            <span class="default-hint">default: 6</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_TOUCH_PIN">TOUCH_PIN</label>
+                            <input type="number" id="pin_TOUCH_PIN" data-default="40" value="40" min="-1" max="127">
+                            <span class="default-hint">default: 40</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_BUZZER_PIN">BUZZER_PIN</label>
+                            <input type="number" id="pin_BUZZER_PIN" data-default="38" value="38" min="-1" max="127">
+                            <span class="default-hint">default: 38</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SD Card -->
+                <div class="gpio-category">
+                    <div class="gpio-category-title">
+                        <span class="cat-icon">&#128190;</span> SD Card
+                    </div>
+                    <div class="gpio-fields">
+                        <div class="gpio-field">
+                            <label for="pin_SD_CS">SD_CS</label>
+                            <input type="number" id="pin_SD_CS" data-default="10" value="10" min="-1" max="127">
+                            <span class="default-hint">default: 10</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_SD_MOSI">SD_MOSI</label>
+                            <input type="number" id="pin_SD_MOSI" data-default="11" value="11" min="-1" max="127">
+                            <span class="default-hint">default: 11</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_SD_SCK">SD_SCK</label>
+                            <input type="number" id="pin_SD_SCK" data-default="12" value="12" min="-1" max="127">
+                            <span class="default-hint">default: 12</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_SD_MISO">SD_MISO</label>
+                            <input type="number" id="pin_SD_MISO" data-default="13" value="13" min="-1" max="127">
+                            <span class="default-hint">default: 13</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- I2S Audio -->
+                <div class="gpio-category">
+                    <div class="gpio-category-title">
+                        <span class="cat-icon">&#127925;</span> I2S Audio
+                    </div>
+                    <div class="gpio-fields">
+                        <div class="gpio-field">
+                            <label for="pin_I2S_MCLK">I2S_MCLK</label>
+                            <input type="number" id="pin_I2S_MCLK" data-default="9" value="9" min="-1" max="127">
+                            <span class="default-hint">default: 9</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_I2S_SDIN">I2S_SDIN</label>
+                            <input type="number" id="pin_I2S_SDIN" data-default="38" value="38" min="-1" max="127">
+                            <span class="default-hint">default: 38</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_I2S_LRCLK">I2S_LRCLK</label>
+                            <input type="number" id="pin_I2S_LRCLK" data-default="21" value="21" min="-1" max="127">
+                            <span class="default-hint">default: 21</span>
+                        </div>
+                        <div class="gpio-field">
+                            <label for="pin_I2S_BCLK">I2S_BCLK</label>
+                            <input type="number" id="pin_I2S_BCLK" data-default="42" value="42" min="-1" max="127">
+                            <span class="default-hint">default: 42</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="gpio-actions">
+                    <button type="button" class="btn-generate" onclick="generateGpioConfig()">
+                        Generate GPIO Config
+                    </button>
+
+                    <div class="gpio-output" id="gpioOutput">
+                        <div class="gpio-output-card">
+                            <h3>GPIO Config Generated Successfully</h3>
+
+                            <a id="gpioDownloadLink" href="#" download="gpio_cfg.bin" class="download-link">
+                                Download gpio_cfg.bin
+                            </a>
+
+                            <div class="cmd-label">Flash the GPIO config to your device:</div>
+                            <div class="cmd-block">esptool.py --chip esp32s3 --port /dev/ttyACM0 write_flash 0x410000 gpio_cfg.bin</div>
+
+                            <p class="note-text">
+                                <strong>Note:</strong> This flashes <strong>only</strong> the GPIO configuration, not the firmware.
+                                Flash the firmware separately using the <strong>Connect Device</strong> button above.
+                                The GPIO config will take effect after the next reboot.
+                            </p>
+
+                            <details class="hex-preview">
+                                <summary>View raw hex dump</summary>
+                                <div class="hex-dump" id="hexDump"></div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+</section>
+
+<div class="card-grid">
+
+    <div class="card">
+
+        <h2>Supported Hardware</h2>
+
+        <p><strong>Board:</strong></p>
+        <p>EdgeHax ESP32-S3 S3-PRO (N16R8)</p>
+
+        <br>
+
+        <p><strong>Chip Family:</strong></p>
+        <p>ESP32-S3 Dual-Core &bull; 16MB Flash &bull; 8MB PSRAM</p>
+
+        <br>
+
+        <p><strong>Display:</strong></p>
+        <p>ILI9341 320x240 TFT + XPT2046 Touch</p>
+
+    </div>
+
+    <div class="card" id="instructions">
+
+        <h2>Installation Steps</h2>
+
+        <ul>
+            <li>Connect the device using a <strong>USB data cable</strong> (not a charging cable).</li>
+            <li>Open Chrome, Edge, Brave, or Opera.</li>
+            <li>Click the <strong>Connect Device</strong> button above.</li>
+            <li>Select the ESP32 serial port from the browser prompt.</li>
+            <li>Allow firmware installation to proceed.</li>
+            <li>Wait for flashing to complete (~30 seconds).</li>
+            <li>The device will reboot automatically.</li>
+            <li>Default PIN is <strong>1234</strong> — change it in Settings.</li>
+        </ul>
+
+    </div>
+
+    <div class="card">
+
+        <h2>6-Layer Security</h2>
+
+        <ul>
+            <li><strong>Layer 1:</strong> ECDH P-256 key exchange</li>
+            <li><strong>Layer 2:</strong> HKDF-SHA256 session key derivation</li>
+            <li><strong>Layer 3:</strong> AES-256-GCM per-message encryption</li>
+            <li><strong>Layer 4:</strong> Sequential nonces (replay protection)</li>
+            <li><strong>Layer 5:</strong> Method tunneling (obfuscated envelopes)</li>
+            <li><strong>Layer 6:</strong> Traffic padding + chaff (pattern hiding)</li>
+        </ul>
+
+    </div>
+
+    <div class="card">
+
+        <h2>Browser Compatibility</h2>
+
+        <ul>
+            <li>Google Chrome (recommended)</li>
+            <li>Microsoft Edge</li>
+            <li>Brave Browser</li>
+            <li>Opera Browser</li>
+            <li>Web Serial API support required</li>
+        </ul>
+
+        <br>
+
+        <p style="color:#ff5252; font-size:.85rem;">
+            Firefox and Safari do not support Web Serial API yet.
+        </p>
+
+    </div>
+
+    <div class="card warning">
+
+        <h2>Important Notes</h2>
+
+        <ul>
+            <li>Use a USB <strong>data</strong> cable (charging cables won't work).</li>
+            <li>Close PlatformIO Serial Monitor or Arduino IDE before flashing.</li>
+            <li>Disconnect other serial tools (PuTTY, minicom, etc.).</li>
+            <li>Do <strong>not</strong> unplug during flashing.</li>
+            <li>Use direct USB ports (avoid USB hubs if possible).</li>
+            <li>If the button doesn't appear, check browser Web Serial support.</li>
+        </ul>
+
+    </div>
+
+    <div class="card">
+
+        <h2>Troubleshooting</h2>
+
+        <ul>
+            <li>Try a different USB cable (many cables are power-only).</li>
+            <li>Install CP210x or CH340 USB-serial drivers on your OS.</li>
+            <li>Refresh the browser page and reconnect.</li>
+            <li>Hold BOOT button while connecting to enter bootloader mode.</li>
+            <li>Verify <code>manifest.json</code> loads correctly in the browser.</li>
+            <li>Verify BIN file paths in <code>manifest.json</code> are accessible.</li>
+            <li>Check that your board is ESP32-S3 (not ESP32 or ESP32-C3).</li>
+        </ul>
+
+    </div>
+
+    <div class="card">
+
+        <h2>After Flashing</h2>
+
+        <ul>
+            <li>Default unlock PIN is <strong>1234</strong>.</li>
+            <li>Change it immediately in Settings &rarr; Change PIN.</li>
+            <li>BLE HID typing works out of the box — pair from your phone.</li>
+            <li>AP Mode: tap mode badge &rarr; AP MODE for WiFi management.</li>
+            <li>Dashboard: tap mode badge &rarr; DASHBOARD for Electron app.</li>
+        </ul>
+
+    </div>
+
+</div>
+
+<div class="footer">
+
+    &copy; 2026 Shubh Jaiswal &bull; SecureVault
+
+    <small>
+        SecureVault Firmware Installer &bull; ESP Web Tools
+    </small>
+
+</div>
+
+</div>
+
+<script>
+/* ===== Tab Switching ===== */
+function switchGpioTab(tab) {
+    document.querySelectorAll('.gpio-tab').forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-tab') === tab);
+    });
+    document.querySelectorAll('.gpio-panel').forEach(function(p) {
+        p.classList.toggle('active', p.id === 'panel-' + tab);
+    });
+}
+
+/* ===== Highlight changed fields ===== */
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('#gpioForm input[type="number"]').forEach(function(input) {
+        input.addEventListener('input', function() {
+            var defVal = parseInt(this.getAttribute('data-default'), 10);
+            var curVal = parseInt(this.value, 10);
+            this.classList.toggle('changed', !isNaN(curVal) && curVal !== defVal);
+        });
+    });
+});
+
+/* ===== CRC32 (Ethernet polynomial 0xEDB88320) ===== */
+function crc32(data) {
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < data.length; i++) {
+        crc ^= data[i];
+        for (var j = 0; j < 8; j++) {
+            if (crc & 1) {
+                crc = (crc >>> 1) ^ 0xEDB88320;
+            } else {
+                crc = crc >>> 1;
+            }
+        }
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+/* ===== Pin key mapping (index -> field id) ===== */
+var PIN_KEYS = [
+    'TFT_CS',          // 0
+    'TFT_RST',         // 1
+    'TFT_DC',          // 2
+    'TFT_MOSI',        // 3
+    'TFT_CLK',         // 4
+    'TFT_MISO',        // 5
+    'TOUCH_CS',        // 6
+    'T_DO',            // 7
+    'RTC_SDA',         // 8
+    'RTC_SCL',         // 9
+    'LADDER_PIN',      // 10
+    'TOUCH_PIN',       // 11
+    'BUZZER_PIN',      // 12
+    'SD_CS',           // 13
+    'SD_MOSI',         // 14
+    'SD_SCK',          // 15
+    'SD_MISO',         // 16
+    'I2S_MCLK',        // 17
+    'I2S_SDIN',        // 18
+    'I2S_LRCLK',       // 19
+    'I2S_BCLK',        // 20
+    'RTC_I2C_ADDR',    // 21
+    'MPU_ADDR',        // 22
+    'EEPROM_I2C_ADDR', // 23
+    'INA219_I2C_ADDR'  // 24
+];
+
+/* ===== Generate GpioConfigBlob ===== */
+function generateGpioConfig() {
+    var blob = new Uint8Array(256);
+
+    // Magic: 0x47435046 little-endian = bytes 0x46, 0x50, 0x43, 0x47
+    blob[0] = 0x46;
+    blob[1] = 0x50;
+    blob[2] = 0x43;
+    blob[3] = 0x47;
+
+    // Version: 1 (uint16 LE)
+    blob[4] = 0x01;
+    blob[5] = 0x00;
+
+    // pins[0..24]: int8 values
+    // offset 6..30
+    for (var i = 0; i < PIN_KEYS.length; i++) {
+        var input = document.getElementById('pin_' + PIN_KEYS[i]);
+        var defVal = parseInt(input.getAttribute('data-default'), 10);
+        var curVal = parseInt(input.value, 10);
+
+        if (isNaN(curVal) || curVal === defVal) {
+            // No override — use default, store 0xFF
+            blob[6 + i] = 0xFF;
+        } else {
+            // Override — store the value as int8
+            blob[6 + i] = curVal & 0xFF;
+        }
+    }
+
+    // reserved[225]: bytes 31..255 — already zeroed by Uint8Array init
+    // (offsets 31..255 minus checksum area)
+
+    // Compute CRC32 of bytes [0..251]
+    var checksum = crc32(blob.subarray(0, 252));
+
+    // Store CRC32 at offset 252-255 (uint32 LE)
+    blob[252] = checksum & 0xFF;
+    blob[253] = (checksum >>> 8) & 0xFF;
+    blob[254] = (checksum >>> 16) & 0xFF;
+    blob[255] = (checksum >>> 24) & 0xFF;
+
+    // Create downloadable blob
+    var binaryBlob = new Blob([blob], { type: 'application/octet-stream' });
+    var url = URL.createObjectURL(binaryBlob);
+
+    var downloadLink = document.getElementById('gpioDownloadLink');
+    downloadLink.href = url;
+
+    // Generate hex dump
+    var hexLines = [];
+    for (var offset = 0; offset < 256; offset += 16) {
+        var hex = ('0000' + offset.toString(16)).slice(-4) + ': ';
+        var ascii = '';
+        for (var j = 0; j < 16; j++) {
+            if (offset + j < 256) {
+                var b = blob[offset + j];
+                hex += ('0' + b.toString(16)).slice(-2) + ' ';
+                ascii += (b >= 32 && b < 127) ? String.fromCharCode(b) : '.';
+            } else {
+                hex += '   ';
+            }
+        }
+        hexLines.push(hex + ' |' + ascii + '|');
+    }
+    document.getElementById('hexDump').textContent = hexLines.join('\n');
+
+    // Show output
+    document.getElementById('gpioOutput').classList.add('visible');
+
+    // Scroll to output
+    document.getElementById('gpioOutput').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+
+</body>
+</html>

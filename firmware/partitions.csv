@@ -1,0 +1,24 @@
+# SecureVault -- Custom partition table for ESP32-S3 N16R8 (16MB flash)
+# Single app partition (no OTA), LittleFS for settings, generous NVS for
+# BLE bonding keys, phy_init reserved per Espressif convention, coredump
+# reserved at the top for crash diagnostics during development.
+#
+# NOTE on the littlefs line's subtype: it's "0x83" (numeric), not the
+# word "littlefs". Arduino-ESP32's own partition tooling accepts either
+# form, but under this project's dual-framework build
+# (`framework = arduino, espidf`, needed for network_manager.cpp's
+# tinyusb_net calls), partition table generation goes through raw
+# ESP-IDF's gen_esp32part.py instead, which does NOT know the "littlefs"
+# keyword -- it only recognizes spiffs/fat by name for data filesystems,
+# and errors out on anything else it doesn't have a keyword for. The
+# numeric value 0x83 is what Arduino-ESP32's LittleFS.begin() actually
+# searches for internally regardless of which tool wrote the table, so
+# using the number directly satisfies both without relying on a keyword
+# only one of the two toolchains understands.
+#
+# Name,      Type, SubType,   Offset,    Size,      Flags
+nvs,         data, nvs,       0x9000,    0x6000,
+phy_init,    data, phy,       0xF000,    0x1000,
+factory,     app,  factory,   0x10000,   0x400000,
+littlefs,    data, 0x83,      0x410000,  0xBE0000,
+coredump,    data, coredump,  0xFF0000,  0x10000,

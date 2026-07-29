@@ -1,0 +1,230 @@
+# Required because platformio.ini uses `framework = arduino, espidf`
+# (dual-framework mode, needed for network_manager.cpp's raw tinyusb_net
+# calls -- see include/network_manager.h for why). Dual-framework mode
+# generates a fresh sdkconfig from ESP-IDF's own defaults rather than the
+# prebuilt one plain `framework = arduino` ships with, and ESP-IDF's
+# default (100Hz) doesn't satisfy Arduino's hard requirement of 1000Hz --
+# confirmed by the actual build error:
+#   "esp32-arduino requires CONFIG_FREERTOS_HZ=1000 (currently 100)"
+
+# Flash size must be set explicitly — dual-framework mode defaults to 2MB
+# (the ESP32-S3-DevKitC-1 board manifest's default), but this board has
+# 16MB. Without this line, gen_esp32part.py picks the board manifest's
+# flash size (2MB) to validate the partition table, and the mismatch
+# against our 16MB partition layout produces the warning:
+#   "Flash memory size mismatch detected. Expected 16MB, found 2MB!"
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+
+CONFIG_FREERTOS_HZ=1000
+
+# Main loop task stack. Must be large enough for the deepest call chain
+# that runs on the loopTask. As of v5.4 this includes the inline save
+# path (ADD/UPDATE/DELETE), which runs vault.addEntry() → saveToSD() →
+# _toJSON() + mbedtls AES-256-GCM + SD write — a heavier chain than the
+# old background sv_save task, which the devs had to bump from 24→28KB.
+# Since the save now runs at the bottom of:
+#   loop() → ui.tick() → serialProto.tick() → processPayload()
+#   → handleSecureRequest() → addEntry() → saveToSD()
+# we need room for BOTH the call-chain frames AND the save's own usage
+# (_toJSON's ArduinoJson arena + mbedtls GCM context + SD buffers).
+# 32KB gives comfortable headroom over the 28KB the standalone save task
+# was found to need, while still fitting comfortably in the N16R8's
+# internal SRAM (PSRAM is NOT used for task stacks — FreeRTOS task stacks
+# must be in internal RAM for interrupt-safety).
+CONFIG_ARDUINO_LOOP_STACK_SIZE=32768
+
+# Octal PSRAM (N16R8's "R8" = 8MB octal PSRAM). Same root cause as the
+# FREERTOS_HZ line above: dual-framework mode doesn't automatically
+# translate platformio.ini's `board_build.psram_type = opi` /
+# `board_build.arduino.memory_type = qio_opi` into sdkconfig the way
+# plain `framework = arduino` mode's prebuilt config does -- without
+# these, PSRAM support compiles out entirely even though the .ini says
+# opi. Flash stays QIO (quad) per qio_opi -- only PSRAM is octal here.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+
+# app_main / Arduino autostart. THE ROOT CAUSE of "undefined reference to
+# `app_main'" at link time. Arduino-ESP32's app_main() (the function that
+# calls initArduino() then setup()/loop()) lives in cores/esp32/main.cpp,
+# but that whole definition is wrapped in `#if CONFIG_AUTOSTART_ARDUINO`
+# (see cores/esp32/main.cpp, and the option itself in the core's
+# Kconfig.projbuild: "Autostart Arduino setup and loop on boot", default
+# n). In plain `framework = arduino` mode this is turned on for you by
+# the prebuilt config PlatformIO ships. Dual-framework mode generates a
+# fresh sdkconfig from ESP-IDF defaults instead (same class of gap as
+# CONFIG_FREERTOS_HZ and CONFIG_SPIRAM below) -- so main.cpp's app_main
+# never got compiled in at all, not just misplaced or stripped by the
+# linker. Nothing in src/ defines app_main itself (main.cpp only has
+# setup()/loop()), so there was no fallback definition anywhere in the
+# link -- hence the undefined reference. This single line is the fix.
+CONFIG_AUTOSTART_ARDUINO=y
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Bluetooth / NimBLE
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dual-framework mode's fresh sdkconfig has BT off by default, where
+# plain Arduino framework's prebuilt config had it on. These enable the
+# BT controller, NimBLE stack, and all required roles.
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=y
+
+# ── FIX: NimBLE Security Manager (SMP) — required for BLE HID pairing ──
+# Without these, NimBLE compiles without the Security Manager Protocol.
+# The BLE HID keyboard needs pairing (bonding + encryption) to type on
+# modern OSes (Windows 10+/macOS/iOS/Android all require it).  When SMP
+# is compiled out, NimBLEDevice::setSecurityAuth() is a no-op and the
+# device advertises but never completes a connection — "Bluetooth not
+# turning on" in practice.
+#
+# These default to y in plain `framework = arduino` mode (Arduino-ESP32's
+# prebuilt sdkconfig enables them), but dual-framework mode's fresh
+# sdkconfig from ESP-IDF defaults leaves them out.  This is the root
+# cause of "BLE not turning on at startup".
+CONFIG_BT_NIMBLE_SM=y
+CONFIG_BT_NIMBLE_SM_SC=y
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_BONDING=y
+
+# Increase NimBLE's internal task stack — the HID keyboard's GATT table
+# (report map + input/output characteristics) is larger than most simple
+# peripherals.  The default 4096 bytes can overflow under heavy
+# notification traffic, causing a silent stack overflow that kills the
+# BLE task.  6144 is generous but safe on an N16R8 with 8MB PSRAM.
+CONFIG_BT_NIMBLE_TASK_STACK_SIZE=6144
+
+# USB-NCM (network_manager.cpp). Gates tinyusb_net.c's compilation in
+# esp_tinyusb (see components/esp_tinyusb/CMakeLists.txt) and selects the
+# CFG_TUD_NCM=1 branch in tusb_config.h. Confirmed against
+# components/esp_tinyusb/Kconfig -- this is a `choice`, so setting the NCM
+# option is sufficient, no separate "enable network" flag exists.
+CONFIG_TINYUSB_NET_MODE_NCM=y
+
+# USB HID and TinyUSB-CDC are both explicitly OFF. Root-caused by reading
+# the real vendored components/esp_tinyusb/include/tusb_config.h directly:
+# CFG_TUD_CDC (and every other TinyUSB macro USBCDC.cpp needs) comes from
+# THAT header, which is a public include dir of the esp_tinyusb component.
+# Arduino-ESP32's own core (cores/esp32/USBCDC.cpp) is a SEPARATE prebuilt
+# framework component whose CMakeLists has no idea this project vendored
+# esp_tinyusb -- it never REQUIRES it. So the moment CONFIG_TINYUSB_CDC_
+# ENABLED evaluates true (that part IS globally visible via sdkconfig.h),
+# USBCDC.cpp's body opens up and immediately hits CFG_TUD_CDC/TU_VERIFY/
+# etc. with zero include-path access to the header that defines them --
+# exactly the "was not declared in this scope" wall in the build log.
+# Same root cause would hit USBHIDKeyboard.cpp (libraries/USB/src) the
+# moment anything links it in.
+#
+# Fixing this by adding esp_tinyusb to Arduino core's own REQUIRES would
+# mean patching a vendored/managed framework package -- fragile, and
+# nothing in this app needs it: native USB HID was already removed
+# entirely, and network_manager.cpp's NCM adapter talks to tinyusb_net.h
+# directly and never touches the CDC or HID classes. So the actual fix is
+# to keep both off, not to make them work:
+#   - CFG_TUD_CDC is gated by CONFIG_TINYUSB_CDC_ENABLED (real symbol,
+#     defined in components/esp_tinyusb/Kconfig) -- explicit `n` here.
+#   - CFG_TUD_HID is gated by CONFIG_TINYUSB_HID_COUNT (also real, same
+#     Kconfig) -- 0 is its own default, no line needed.
+# With CONFIG_TINYUSB_CDC_ENABLED=n, USBCDC.cpp's whole guarded body
+# compiles out to nothing (SOC_USB_OTG_SUPPORTED && CONFIG_TINYUSB_CDC_
+# ENABLED both required to enter it) -- no symbols referenced, no error.
+# Serial-over-USB is untouched by this: it runs through Hardware CDC/JTAG
+# (a different peripheral/file, HWCDC.cpp), gated only by
+# ARDUINO_USB_MODE=1 below, which never depended on TinyUSB at all.
+CONFIG_TINYUSB_CDC_ENABLED=n
+
+# NOTE: the component manager is disabled via the IDF_COMPONENT_MANAGER=0
+# environment variable (set in disable_component_manager.py, hooked in via
+# platformio.ini's extra_scripts) -- not here. The component-manager
+# decision happens before Kconfig/sdkconfig is even processed, so an
+# sdkconfig.defaults entry would be silently ignored; confirmed against
+# the actual reported workaround in platformio/platform-espressif32#1633.
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Hardware-accelerated mbedTLS (ESP32-S3 crypto accelerator)
+#  5-10x faster ECDH P-256 handshake + AES-256-GCM + SHA-256 + PBKDF2.
+#  The ESP32-S3 has dedicated hardware for AES, SHA, MPI (big-integer for
+#  ECC), and ECC point multiplication. These are enabled by default on
+#  some IDF versions but NOT in dual-framework mode — set explicitly.
+# ═══════════════════════════════════════════════════════════════════════════════
+CONFIG_MBEDTLS_HARDWARE_AES=y
+CONFIG_MBEDTLS_HARDWARE_MPI=y
+CONFIG_MBEDTLS_HARDWARE_SHA=y
+CONFIG_MBEDTLS_HARDWARE_ECC=y
+CONFIG_MBEDTLS_ECP_RESTARTABLE=y
+# v9.20: Enable PKCS5 (PBKDF2) and MD (HMAC) modules for the optimized
+# mbedtls_pkcs5_pbkdf2_hmac() call in crypto_utils.cpp. These are on by
+# default in ESP-IDF 5.x but dual-framework mode's fresh sdkconfig may
+# not include them — set explicitly.
+CONFIG_MBEDTLS_PKCS5_C=y
+CONFIG_MBEDTLS_MD_C=y
+# v5.4 AP MODE: Enable HKDF, ECDH, CTR_DRBG, and ENTROPY modules for
+# the 6-layer web stack (web_crypto_utils.cpp + secure_layer_manager.cpp).
+# HKDF is used for ECDH session key derivation (Layer 2); ECDH is the
+# P-256 key exchange; CTR_DRBG + ENTROPY seed the deterministic RNG
+# used by the ECDH keypair generation. These are on by default in
+# ESP-IDF 5.x but dual-framework mode's fresh sdkconfig may not include
+# them — set explicitly. Without HKDF_C, the linker fails with
+# "undefined reference to mbedtls_hkdf".
+CONFIG_MBEDTLS_HKDF_C=y
+CONFIG_MBEDTLS_ECDH_C=y
+CONFIG_MBEDTLS_CTR_DRBG_C=y
+CONFIG_MBEDTLS_ENTROPY_C=y
+# GCM module is needed by both secure_layer_manager.cpp (Layer 2 AES-256-GCM
+# for the web stack) and the existing secure_session.cpp (Dashboard Mode
+# over USB-CDC). Hardware AES already provides the primitives, but the
+# mbedtls_gcm_* software wrappers need this config to compile.
+CONFIG_MBEDTLS_GCM_C=y
+
+# ── Task Watchdog — disable idle-task monitoring on core 1 ──────────────
+# Arduino's loopTask runs on core 1 at priority 1, which starves the
+# idle task (priority 0) during long crypto operations (PBKDF2 20k
+# iterations = 2-5s without HW SHA). The TWDT monitors idle tasks and
+# fires a panic after 5s default timeout when the idle task doesn't run.
+# Since the loopTask IS functioning correctly (just busy), monitoring
+# its core's idle task causes false-positive watchdog reboots during
+# legitimate saveToSD operations. Core 0 idle monitoring stays on.
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Maximize PSRAM usage — this board is single-purpose (SecureVault only),
+#  so there's no other workload competing for the 8MB of PSRAM. Push as
+#  much off internal SRAM as possible, since internal SRAM is the actual
+#  scarce resource here (idle baseline measured at ~34.7KB free — see
+#  [HeapMon] log in main.cpp) while PSRAM sits almost completely idle.
+#
+#  HARD LIMIT that does NOT move here, no matter how much PSRAM is free:
+#  the AES-256-GCM hardware accelerator (CONFIG_MBEDTLS_HARDWARE_AES
+#  above) requires its source/destination buffers in internal, DMA-
+#  capable memory — this is a silicon constraint, not a config choice.
+#  serial_protocol.cpp's `plaintext`/`respFrame` buffers are pinned to
+#  internal DMA memory explicitly (cryptoAlloc from crypto_buffer.h) for exactly this
+#  reason; moving them to PSRAM previously caused silent corruption on
+#  large payloads (Identity entries) that crashed the USB CDC driver.
+#  Everything below is memory that has NO such hardware requirement.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# NimBLE's connection/GATT memory pools default to internal SRAM
+# (CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_INTERNAL). None of that memory is
+# DMA-target for the radio itself (the controller's own buffers are
+# separate and stay internal automatically) — the host-side mbufs/
+# mempools NimBLE uses for GATT attributes, connection state, and HID
+# report queues have no hardware memory-location requirement. Moving
+# them to PSRAM frees a meaningful chunk of the ~34KB internal pool that
+# was otherwise permanently reserved for BLE housekeeping.
+CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
+
+# Lower the "always use internal SRAM below this size" cutoff from the
+# 16KB default down to 512 bytes. This is what was silently forcing
+# JsonDocument arenas (LIST/GET/ADD/UPDATE, all well under 16KB) and
+# other small heap allocations onto internal SRAM even with PSRAM
+# sitting empty. Buffers that explicitly need internal/DMA memory
+# (heap_caps_malloc(..., MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA), used for
+# the AES-GCM buffers above) are unaffected by this — they request
+# internal memory directly by capability flag, not through this
+# size-based default path.
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=512

@@ -1,0 +1,18 @@
+{
+  "name": "secure-vault-electron",
+  "version": "6.4.0",
+  "description": "Desktop manager for SecureVault — connects to ESP32-S3 over USB CDC serial with ECDH + AES-256-GCM (4-Layer Security Stack). No HTTP, no network stack — direct USB serial only. Tray-mode + .svlt file watcher for two-way sync with the browser extension.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test:crypto": "node test_roundtrip.js",
+    "postinstall": "echo 'SecureVault Electron v5.2 installed. Run: npm start'"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "serialport": "^12.0.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0"
+  }
+}

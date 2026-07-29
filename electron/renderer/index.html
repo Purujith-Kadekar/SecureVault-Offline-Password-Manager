@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:;">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecureVault</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ══════════════ SPLASH / MODE CHOOSER ══════════════ -->
+  <section id="screen-sdcard" class="screen">
+    <div class="center-card">
+      <h1>🔐 SecureVault</h1>
+      <p class="muted" id="sdcard-wait-text">
+        Choose how to access your vault:
+      </p>
+
+      <div class="mode-choice">
+        <button id="btn-connect-device" class="btn primary">
+          🔌 Connect to ESP32 Device<br>
+          <span class="muted small">USB serial — ECDH + AES-256-GCM (no HTTP)</span>
+        </button>
+        <button id="btn-pick-sdcard" class="btn ghost">
+          💾 Read SD Card Directly<br>
+          <span class="muted small">Offline mode (no device needed)</span>
+        </button>
+      </div>
+
+      <div id="sdcard-scan-spinner" class="spinner hidden"></div>
+      <p id="sdcard-candidates" class="muted small"></p>
+      <p id="sdcard-path-display" class="muted small"></p>
+      <p id="sdcard-error" class="error"></p>
+    </div>
+  </section>
+
+  <!-- ══════════════ DEVICE CONNECT (6-digit code entry) ══════════════ -->
+  <section id="screen-device-connect" class="screen hidden">
+    <div class="center-card">
+      <h1>🔌 Connect to Device</h1>
+      <p class="muted">
+        On your ESP32, select <b>Dashboard Mode</b> and enter your PIN.<br>
+        A 6-digit code will appear on the device screen.<br>
+        Enter it below:
+      </p>
+      <input id="device-code" type="text" inputmode="numeric" maxlength="6"
+             placeholder="• • • • • •" autocomplete="off"
+             class="code-input">
+      <p id="device-connect-error" class="error"></p>
+      <p id="device-connect-status" class="muted small"></p>
+      <button id="btn-device-connect" class="btn primary">Connect</button>
+      <button id="btn-device-back" class="btn ghost">← Back</button>
+    </div>
+  </section>
+
+  <!-- ══════════════ FIRST-TIME SETUP (no vault.db yet) ══════════════ -->
+  <section id="screen-setup" class="screen hidden">
+    <div class="center-card">
+      <h1>No vault.db found</h1>
+      <p class="muted">This card doesn't have a vault yet. Choose a PIN to create one.<br>
+      Use the <b>same PIN</b> you'll enter on the ESP32 device.</p>
+      <input id="setup-pin" type="password" placeholder="Choose a PIN" autocomplete="off" class="input">
+      <input id="setup-pin-confirm" type="password" placeholder="Confirm PIN" autocomplete="off" class="input">
+      <div id="setup-strength-meter" class="strength-meter hidden">
+        <div class="strength-bar"><div id="setup-strength-fill" class="strength-fill"></div></div>
+        <span id="setup-strength-label" class="strength-label muted small"></span>
+      </div>
+      <button id="btn-create-vault" class="btn primary">Create Vault</button>
+      <button id="btn-setup-back" class="btn ghost">← Choose a different card</button>
+      <p id="setup-error" class="error"></p>
+    </div>
+  </section>
+
+  <!-- ══════════════ LOCK SCREEN ══════════════ -->
+  <section id="screen-lock" class="screen hidden">
+    <div class="center-card">
+      <h1>🔒 Locked</h1>
+      <p class="muted small" id="lock-path-display"></p>
+      <input id="lock-pin" type="password" placeholder="Enter PIN" autocomplete="off" class="input pin-input">
+      <button id="btn-unlock" class="btn primary">Unlock</button>
+      <button id="btn-lock-change-card" class="btn ghost">← Use a different card</button>
+      <p id="lock-error" class="error"></p>
+    </div>
+  </section>
+
+  <!-- ══════════════ DASHBOARD ══════════════ -->
+  <section id="screen-dashboard" class="screen hidden dashboard-screen">
+
+    <!-- ─── Topbar ─── -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="brand">🔓 SecureVault</span>
+        <span class="sd-indicator" id="sd-indicator" title="SD card status"></span>
+      </div>
+      <div class="topbar-center">
+        <input id="search-box" type="text" placeholder="Search vault…  (Ctrl+F)" autocomplete="off">
+      </div>
+      <div class="topbar-right">
+        <span id="ext-sync-pill" class="sync-pill" title="Browser extension vault sync status">
+          <span class="sync-dot"></span>
+          <span class="sync-label">Ext: idle</span>
+        </span>
+        <button id="btn-ext-sync-from-file" class="btn ghost tiny" title="Read .svlt file written by the browser extension and push new entries to the ESP32">📥 From file</button>
+        <button id="btn-ext-sync-now" class="btn ghost tiny" title="Write .svlt file for the browser extension now">📤 To extension</button>
+        <button id="btn-csv-import" class="btn ghost tiny" title="Import vault from Bitwarden CSV">📥 CSV</button>
+        <button id="btn-csv-export" class="btn ghost tiny" title="Export vault to Bitwarden CSV">📤 CSV</button>
+        <button id="btn-topbar-health-scan" class="btn ghost tiny hidden" title="Scan all passwords for breaches">🛡</button>
+        <button id="btn-add-entry" class="btn primary tiny">＋ Add</button>
+        <button id="btn-settings" class="btn ghost tiny" title="Settings">⚙</button>
+        <button id="btn-lock-now" class="btn ghost tiny" title="Lock vault (Ctrl+L)">🔒 Lock</button>
+      </div>
+    </header>
+
+    <div class="dashboard-body">
+
+      <!-- ─── Sidebar ─── -->
+      <aside class="sidebar">
+
+        <div class="sidebar-section">
+          <div class="sidebar-title">Types</div>
+          <ul id="type-filter" class="nav-list">
+            <li data-type="all" class="active">
+              <span class="nav-icon">📋</span><span class="nav-label">All</span>
+              <span class="count" id="count-all">0</span>
+            </li>
+            <li data-type="login">
+              <span class="nav-icon">🔐</span><span class="nav-label">Logins</span>
+              <span class="count" id="count-login">0</span>
+            </li>
+            <li data-type="card">
+              <span class="nav-icon">💳</span><span class="nav-label">Cards</span>
+              <span class="count" id="count-card">0</span>
+            </li>
+            <li data-type="identity">
+              <span class="nav-icon">🪪</span><span class="nav-label">Identities</span>
+              <span class="count" id="count-identity">0</span>
+            </li>
+            <li data-type="note">
+              <span class="nav-icon">📝</span><span class="nav-label">Secure Notes</span>
+              <span class="count" id="count-note">0</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-title">Favorites</div>
+          <ul class="nav-list">
+            <li id="fav-nav" class="clickable">
+              <span class="nav-icon">⭐</span><span class="nav-label">Favorites</span>
+              <span class="count" id="count-fav">0</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-title">Folders</div>
+          <ul id="folder-filter" class="nav-list">
+            <li data-folder="" class="active">
+              <span class="nav-icon">📁</span><span class="nav-label">No folder</span>
+              <span class="count" id="count-nofolder">0</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-title">Tags</div>
+          <ul id="tag-filter" class="nav-list tag-cloud">
+            <li class="muted small">No tags yet</li>
+          </ul>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-title">Trash</div>
+          <ul class="nav-list">
+            <li id="trash-nav" class="clickable">
+              <span class="nav-icon">🗑</span><span class="nav-label">Trash</span>
+              <span class="count" id="count-trash">0</span>
+            </li>
+          </ul>
+        </div>
+
+      </aside>
+
+      <!-- ─── Main content ─── -->
+      <main id="main-list" class="main-content">
+        <div class="main-header">
+          <div class="main-title">
+            <h2 id="current-filter-name">All Items</h2>
+            <span class="muted small" id="current-filter-count">0 items</span>
+          </div>
+          <div class="main-controls">
+            <select id="sort-select" class="select tiny">
+              <option value="name-asc">Name A → Z</option>
+              <option value="name-desc">Name Z → A</option>
+              <option value="updated-desc">Recently Updated</option>
+              <option value="created-desc">Recently Created</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="entry-list" class="entry-list"></div>
+
+        <div id="empty-state" class="empty-state hidden">
+          <div class="empty-icon">📭</div>
+          <h3>No entries yet</h3>
+          <p class="muted">Add your first entry to get started.</p>
+          <button class="btn primary" id="btn-empty-add">＋ Add your first entry</button>
+        </div>
+      </main>
+
+      <!-- ─── Trash view ─── -->
+      <main id="main-trash" class="main-content hidden">
+        <div class="main-header">
+          <div class="main-title">
+            <h2>🗑 Trash</h2>
+            <span class="muted small">Auto-purged after 30 days</span>
+          </div>
+          <div class="main-controls">
+            <button id="btn-empty-trash" class="btn danger tiny">Empty Trash</button>
+            <button id="btn-exit-trash" class="btn ghost tiny">← Back</button>
+          </div>
+        </div>
+        <div id="trash-list" class="entry-list"></div>
+        <div id="trash-empty-state" class="empty-state">
+          <div class="empty-icon">🗑</div>
+          <h3>Trash is empty</h3>
+          <p class="muted">Deleted entries appear here for 30 days before permanent removal.</p>
+        </div>
+      </main>
+
+    </div>
+
+    <footer class="statusbar">
+      <span id="entry-count"></span>
+      <span id="save-status"></span>
+      <span class="muted tiny" id="ext-sync-info"></span>
+    </footer>
+  </section>
+
+</div>
+
+<!-- ══════════════ ADD / EDIT ENTRY MODAL ══════════════ -->
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal wide" id="entry-modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Add Entry</h2>
+      <button class="modal-close" id="btn-modal-close" title="Close (Esc)">✕</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- ── Type selector ── -->
+      <div class="type-segmented" id="type-segmented">
+        <button class="seg-btn active" data-type="login">🔐 Login</button>
+        <button class="seg-btn" data-type="card">💳 Card</button>
+        <button class="seg-btn" data-type="identity">🪪 Identity</button>
+        <button class="seg-btn" data-type="note">📝 Secure Note</button>
+      </div>
+
+      <!-- ══ LOGIN fields ══ -->
+      <div data-type-fields="login" class="type-fields">
+        <div class="field-row">
+          <label>Site / Service Name <span class="req">*</span></label>
+          <input id="field-site" type="text" maxlength="31" placeholder="e.g. Gmail" class="input">
+        </div>
+        <div class="field-row">
+          <label>URL</label>
+          <input id="field-url" type="text" maxlength="63" placeholder="https://gmail.com" class="input">
+        </div>
+        <div class="field-row">
+          <label>Username</label>
+          <input id="field-user" type="text" maxlength="47" placeholder="username@example.com" class="input">
+        </div>
+        <div class="field-row">
+          <label>Password</label>
+          <div class="input-with-buttons">
+            <input id="field-pass" type="password" maxlength="47" placeholder="••••••••" class="input" autocomplete="new-password">
+            <button class="btn ghost tiny" id="btn-toggle-pass" title="Show / hide">👁</button>
+            <button class="btn ghost tiny" id="btn-generate-pass" title="Generate password">🎲</button>
+          </div>
+          <div class="strength-meter" id="strength-meter">
+            <div class="strength-bar"><div id="strength-fill" class="strength-fill"></div></div>
+            <span id="strength-label" class="strength-label muted small"></span>
+          </div>
+          <div id="breach-check-row" class="breach-check-row hidden" style="margin-top:6px;">
+            <button type="button" id="btn-check-pwned" class="btn ghost tiny">🛡 Check for breaches</button>
+            <span id="breach-badge" class="breach-badge"></span>
+          </div>
+        </div>
+        <div class="field-row">
+          <label>TOTP Secret <span class="muted small">(optional — Base32)</span></label>
+          <div class="input-with-buttons">
+            <input id="field-totp" type="text" maxlength="31" placeholder="JBSWY3DPEHPK3PXP" class="input mono">
+            <button class="btn ghost tiny" id="btn-copy-totp" title="Copy current TOTP code">📋</button>
+          </div>
+          <div id="totp-preview" class="totp-preview hidden">
+            <span class="totp-code" id="totp-code">------</span>
+            <span class="totp-progress"><span id="totp-bar"></span></span>
+            <span class="muted small" id="totp-seconds">30s</span>
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Notes</label>
+          <textarea id="field-notes" maxlength="159" rows="3" placeholder="Optional notes" class="input"></textarea>
+        </div>
+      </div>
+
+      <!-- ══ CARD fields ══ -->
+      <div data-type-fields="card" class="type-fields hidden">
+        <div class="field-row">
+          <label>Card Name <span class="req">*</span></label>
+          <input id="field-card-name" type="text" maxlength="31" placeholder="e.g. Visa Primary" class="input">
+        </div>
+        <div class="field-row">
+          <label>Cardholder</label>
+          <input id="field-card-holder" type="text" maxlength="31" placeholder="JOHN DOE" class="input">
+        </div>
+        <div class="field-row">
+          <label>Card Number</label>
+          <input id="field-card-number" type="text" maxlength="23" placeholder="0000 0000 0000 0000" class="input mono" inputmode="numeric">
+          <span class="muted small" id="card-brand-display"></span>
+        </div>
+        <div class="field-row two-col">
+          <div>
+            <label>Expiry (MM/YY)</label>
+            <input id="field-card-expiry" type="text" maxlength="5" placeholder="MM/YY" class="input mono">
+          </div>
+          <div>
+            <label>CVV</label>
+            <div class="input-with-buttons">
+              <input id="field-card-cvv" type="password" maxlength="4" placeholder="•••" class="input mono" inputmode="numeric">
+              <button class="btn ghost tiny" id="btn-toggle-cvv" title="Show / hide">👁</button>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Notes</label>
+          <textarea id="field-card-notes" maxlength="159" rows="3" placeholder="Optional notes" class="input"></textarea>
+        </div>
+      </div>
+
+      <!-- ══ IDENTITY fields ══ -->
+      <div data-type-fields="identity" class="type-fields hidden">
+        <div class="field-row">
+          <label>Identity Name <span class="req">*</span></label>
+          <input id="field-id-name" type="text" maxlength="31" placeholder="e.g. Personal" class="input">
+        </div>
+        <div class="field-row two-col">
+          <div>
+            <label>First Name</label>
+            <input id="field-id-first" type="text" maxlength="23" class="input">
+          </div>
+          <div>
+            <label>Last Name</label>
+            <input id="field-id-last" type="text" maxlength="23" class="input">
+          </div>
+        </div>
+        <div class="field-row two-col">
+          <div>
+            <label>Email</label>
+            <input id="field-id-email" type="email" maxlength="47" class="input">
+          </div>
+          <div>
+            <label>Phone</label>
+            <input id="field-id-phone" type="tel" maxlength="19" class="input">
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Address</label>
+          <input id="field-id-address" type="text" maxlength="47" class="input">
+        </div>
+        <div class="field-row two-col">
+          <div>
+            <label>City</label>
+            <input id="field-id-city" type="text" maxlength="23" class="input">
+          </div>
+          <div>
+            <label>State / Province</label>
+            <input id="field-id-state" type="text" maxlength="23" class="input">
+          </div>
+        </div>
+        <div class="field-row two-col">
+          <div>
+            <label>Postal Code</label>
+            <input id="field-id-postal" type="text" maxlength="11" class="input">
+          </div>
+          <div>
+            <label>Country</label>
+            <input id="field-id-country" type="text" maxlength="23" class="input">
+          </div>
+        </div>
+        <div class="field-row three-col">
+          <div>
+            <label>SSN</label>
+            <input id="field-id-ssn" type="password" maxlength="15" class="input mono">
+          </div>
+          <div>
+            <label>Passport #</label>
+            <input id="field-id-passport" type="text" maxlength="23" class="input mono">
+          </div>
+          <div>
+            <label>License #</label>
+            <input id="field-id-license" type="text" maxlength="23" class="input mono">
+          </div>
+        </div>
+        <div class="field-row">
+          <label>Notes</label>
+          <textarea id="field-id-notes" maxlength="159" rows="3" class="input"></textarea>
+        </div>
+      </div>
+
+      <!-- ══ SECURE NOTE fields ══ -->
+      <div data-type-fields="note" class="type-fields hidden">
+        <div class="field-row">
+          <label>Title <span class="req">*</span></label>
+          <input id="field-note-title" type="text" maxlength="31" placeholder="e.g. WiFi Password" class="input">
+        </div>
+        <div class="field-row">
+          <label>Notes</label>
+          <textarea id="field-note-content" maxlength="159" rows="8" placeholder="Type your secure note here…" class="input mono"></textarea>
+        </div>
+      </div>
+
+      <!-- ══ Shared fields: Folder, Tags, Favorite ══ -->
+      <div class="shared-fields">
+        <div class="field-row two-col">
+          <div>
+            <label>Folder</label>
+            <input id="field-folder" type="text" list="folder-datalist" maxlength="23" placeholder="No folder" class="input">
+            <datalist id="folder-datalist"></datalist>
+          </div>
+          <div>
+            <label>Tags <span class="muted small">(comma-separated)</span></label>
+            <input id="field-tags" type="text" placeholder="personal, work" class="input">
+          </div>
+        </div>
+        <div class="field-row">
+          <label class="checkbox-row">
+            <input type="checkbox" id="field-favorite">
+            <span>⭐ Mark as favorite</span>
+          </label>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button id="btn-modal-delete" class="btn danger hidden">🗑 Move to Trash</button>
+      <span class="spacer"></span>
+      <button id="btn-modal-cancel" class="btn ghost">Cancel</button>
+      <button id="btn-modal-save" class="btn primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ SETTINGS MODAL ══════════════ -->
+<div id="settings-backdrop" class="modal-backdrop hidden">
+  <div class="modal wide" id="settings-modal">
+    <div class="modal-header">
+      <h2>⚙ Settings</h2>
+      <button class="modal-close" id="btn-settings-close" title="Close (Esc)">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="settings-section">
+        <h3>💾 SD Card</h3>
+        <div class="setting-row">
+          <label>SD card location</label>
+          <div class="input-with-buttons">
+            <input id="settings-sdcard-path" type="text" readonly class="input">
+            <button class="btn ghost tiny" id="btn-settings-pick-sdcard">Browse…</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>🔒 Security</h3>
+        <div class="setting-row">
+          <label>Auto-lock timeout (minutes, 0 = never)</label>
+          <input id="settings-autolock" type="number" min="0" max="240" value="5" class="input tiny">
+        </div>
+        <div class="setting-row">
+          <label>Trash auto-purge (days)</label>
+          <input id="settings-purge-days" type="number" min="1" max="365" value="30" class="input tiny">
+        </div>
+        <div class="setting-row">
+          <label>Change master PIN</label>
+          <div class="input-with-buttons stacked">
+            <input id="settings-old-pin" type="password" placeholder="Current PIN" class="input">
+            <input id="settings-new-pin" type="password" placeholder="New PIN (min 4 chars)" class="input">
+            <input id="settings-new-pin-confirm" type="password" placeholder="Confirm new PIN" class="input">
+            <button class="btn ghost tiny" id="btn-change-pin">Change PIN</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>📦 Backups</h3>
+        <p class="muted small">Last 5 backups of vault.db are kept on the SD card in <code>.backups/</code>.</p>
+        <ul id="settings-backup-list" class="backup-list"></ul>
+      </div>
+
+      <div class="settings-section">
+        <h3>🛡 Breach Detection (Have I Been Pwned)</h3>
+        <p class="muted small">Checks passwords against the Have I Been Pwned database using k-anonymity — only a 5-character hash prefix is sent, never your password. <strong>Off by default.</strong></p>
+        <div class="setting-row">
+          <label class="checkbox-row">
+            <input type="checkbox" id="settings-hibp">
+            <span>Enable breach detection</span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <button id="btn-health-scan" class="btn ghost small" disabled>🛡 Scan vault for breaches</button>
+        </div>
+        <p id="health-scan-result" class="muted small" style="margin-top:6px;"></p>
+      </div>
+
+      <div class="settings-section">
+        <h3>🌐 Browser Extension Sync</h3>
+        <p class="muted small">Write an encrypted <code>.svlt</code> file that the browser extension reads.</p>
+        <div class="setting-row">
+          <label class="checkbox-row">
+            <input type="checkbox" id="extsync-enabled">
+            <span>Enable browser extension sync</span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <label>Vault file path (.svlt)</label>
+          <div class="input-with-buttons">
+            <input id="extsync-filepath" type="text" readonly class="input" placeholder="No file chosen">
+            <button class="btn ghost tiny" id="btn-extsync-pick">Choose…</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <label>Master password (stored in OS keychain via safeStorage)</label>
+          <div class="input-with-buttons stacked">
+            <input id="extsync-new-password" type="password" placeholder="Set new master password (min 8 chars)" class="input">
+            <div class="btn-row">
+              <button class="btn ghost tiny" id="btn-extsync-set-password">Set password</button>
+              <button class="btn ghost tiny" id="btn-extsync-change-password">Change password</button>
+              <button class="btn ghost tiny" id="btn-extsync-clear-password">Clear</button>
+            </div>
+          </div>
+          <p class="muted small" id="extsync-password-status"></p>
+        </div>
+        <div class="setting-row">
+          <label class="checkbox-row">
+            <input type="checkbox" id="extsync-auto-sync" checked>
+            <span>Auto-write after device sync</span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <label class="checkbox-row">
+            <input type="checkbox" id="extsync-auto-edit" checked>
+            <span>Auto-write after on-device edits</span>
+          </label>
+        </div>
+        <div class="setting-row">
+          <button class="btn primary tiny" id="btn-extsync-write-now">Write .svlt now</button>
+          <button class="btn ghost tiny" id="btn-extsync-sync-from-file">Sync from .svlt to ESP32</button>
+        </div>
+        <p class="muted small" id="extsync-safestorage-status"></p>
+      </div>
+
+      <div class="settings-section">
+        <h3>ℹ About</h3>
+        <p class="muted small">SecureVault Desktop v6.4 (sync-fixed)</p>
+        <p class="muted small">ESP32 protocol: USB-CDC serial, ECDH P-256 + AES-256-GCM (SV13 frames)</p>
+        <p class="muted small">SD-card vault: SVL1 v1, PBKDF2-SHA256 @ 20k iterations, AES-256-GCM</p>
+        <p class="muted small">Extension file: SVLT v2, PBKDF2-SHA512 @ 600k iterations, AES-256-GCM + HMAC-SHA256</p>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <span class="spacer"></span>
+      <button id="btn-settings-done" class="btn primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PASSWORD GENERATOR MODAL ══════════════ -->
+<div id="gen-backdrop" class="modal-backdrop hidden">
+  <div class="modal" id="gen-modal">
+    <div class="modal-header">
+      <h2>🎲 Password Generator</h2>
+      <button class="modal-close" id="btn-gen-close" title="Close (Esc)">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="gen-output-row">
+        <input id="gen-output" type="text" readonly class="input mono gen-output">
+        <button class="btn ghost tiny" id="btn-gen-copy" title="Copy">📋</button>
+        <button class="btn ghost tiny" id="btn-gen-refresh" title="Regenerate">↻</button>
+      </div>
+      <div class="strength-meter">
+        <div class="strength-bar"><div id="gen-strength-fill" class="strength-fill"></div></div>
+        <span id="gen-strength-label" class="strength-label muted small"></span>
+      </div>
+
+      <div class="gen-mode-tabs">
+        <button class="seg-btn active" data-gen-mode="random">Random</button>
+        <button class="seg-btn" data-gen-mode="passphrase">Passphrase</button>
+      </div>
+
+      <!-- Random mode -->
+      <div data-gen-fields="random" class="gen-fields">
+        <div class="setting-row">
+          <label>Length: <span id="gen-length-val" class="mono">20</span></label>
+          <input id="gen-length" type="range" min="8" max="64" value="20">
+        </div>
+        <div class="gen-checkboxes">
+          <label class="checkbox-row"><input type="checkbox" id="gen-uppercase" checked><span>A-Z</span></label>
+          <label class="checkbox-row"><input type="checkbox" id="gen-lowercase" checked><span>a-z</span></label>
+          <label class="checkbox-row"><input type="checkbox" id="gen-numbers" checked><span>0-9</span></label>
+          <label class="checkbox-row"><input type="checkbox" id="gen-symbols" checked><span>!@#$%^&*</span></label>
+          <label class="checkbox-row"><input type="checkbox" id="gen-avoid-ambiguous" checked><span>Avoid ambiguous (0/O, 1/l)</span></label>
+        </div>
+      </div>
+
+      <!-- Passphrase mode -->
+      <div data-gen-fields="passphrase" class="gen-fields hidden">
+        <div class="setting-row">
+          <label>Word count: <span id="gen-wordcount-val" class="mono">4</span></label>
+          <input id="gen-wordcount" type="range" min="2" max="8" value="4">
+        </div>
+        <div class="setting-row">
+          <label>Separator</label>
+          <input id="gen-separator" type="text" maxlength="3" value="-" class="input tiny">
+        </div>
+        <div class="gen-checkboxes">
+          <label class="checkbox-row"><input type="checkbox" id="gen-capitalize" checked><span>Capitalize words</span></label>
+          <label class="checkbox-row"><input type="checkbox" id="gen-include-number" checked><span>Append number</span></label>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <span class="spacer"></span>
+      <button id="btn-gen-use" class="btn primary">Use this</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TOAST CONTAINER ══════════════ -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- ══════════════ CONTEXT MENU ══════════════ -->
+<div id="ctx-menu" class="ctx-menu hidden"></div>
+
+<script src="renderer.js"></script>
+</body>
+</html>

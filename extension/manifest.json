@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "SecureVault",
+  "version": "6.8.1",
+  "description": "Premium zero-knowledge password manager with Bitwarden-compatible features.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "clipboardWrite",
+    "tabs",
+    "windows",
+    "contextMenus",
+    "notifications",
+    "unlimitedStorage",
+    "system.display"
+  ],
+  "host_permissions": [
+    "https://api.pwnedpasswords.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "_comment_E9": "all_frames: false — only inject into the top frame. For a password manager, injecting into EVERY iframe (including third-party ad/tracking iframes) is a security risk: (1) exposes extension presence to untrusted code, (2) wastes CPU on irrelevant iframe DOMs, (3) could accidentally autofill into hidden ad pixels, (4) shield button would appear in ads. If iframe autofill is needed, use chrome.scripting.executeScript dynamically for trusted same-origin iframes.",
+      "matches": ["<all_urls>"],
+      "js": ["urlMatcher.js", "content.js", "inline-overlay.js", "save-prompt.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_title": "SecureVault — click to open vault",
+    "default_popup": "window.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
