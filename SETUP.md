@@ -109,7 +109,7 @@ You can host `flasher/` on GitHub Pages:
 
 1. Push this repo to GitHub
 2. Go to Settings → Pages → Source: Deploy from branch → `main` → `/flasher`
-3. The flasher page is live at `https://your-username.github.io/SecureVault/`
+3. The flasher page is live at `https://github.com/Purujith-Kadekar/SecureVault-Offline-Password-Manager`
 
 Or host it anywhere — it's a static HTML page with no server-side dependencies.
 
