@@ -353,7 +353,7 @@ Contributions, bug reports, and hardware ports are welcome — see **[CONTRIBUTI
 
 ## 📜 License
 
-[MIT](LICENSE) © Shubh Jaiswal.
+[MIT](LICENSE) © Purujith Kadekar.
 
 ## 🙌 Credits
 
